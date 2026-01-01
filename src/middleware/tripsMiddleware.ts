@@ -20,12 +20,12 @@ export async function getTrip(ctx: Context) {
     return
   }
 
-  // Check if user's organization has permission
-  if (ctx.user?.organizationId) {
-    const hasAccess = await TripPermissionModel.hasPermission(id, ctx.user.organizationId)
+  // Check if user or their organization has permission
+  if (ctx.user?.userId && ctx.user?.organizationId) {
+    const hasAccess = await TripPermissionModel.hasPermission(id, ctx.user.userId, ctx.user.organizationId)
     if (!hasAccess) {
       ctx.status = 403
-      ctx.body = { error: 'Access denied: Your organization does not have permission to view this trip' }
+      ctx.body = { error: 'Access denied: You do not have permission to view this trip' }
       return
     }
   }
@@ -49,6 +49,7 @@ export async function createTrip(ctx: Context) {
     await TripPermissionModel.create({
       trip_id: trip.id,
       organization_id: ctx.user.organizationId,
+      user_id: null,
     })
   }
 
@@ -80,12 +81,12 @@ export async function updateTrip(ctx: Context) {
     return
   }
 
-  // Check if user's organization has permission
-  if (ctx.user?.organizationId) {
-    const hasAccess = await TripPermissionModel.hasPermission(id, ctx.user.organizationId)
+  // Check if user or their organization has permission
+  if (ctx.user?.userId && ctx.user?.organizationId) {
+    const hasAccess = await TripPermissionModel.hasPermission(id, ctx.user.userId, ctx.user.organizationId)
     if (!hasAccess) {
       ctx.status = 403
-      ctx.body = { error: 'Access denied: Your organization does not have permission to update this trip' }
+      ctx.body = { error: 'Access denied: You do not have permission to update this trip' }
       return
     }
   }
@@ -116,10 +117,11 @@ export async function shareTrip(ctx: Context) {
     return
   }
 
-  const body = ctx.request.body as { organization_id?: number }
+  const body = ctx.request.body as { organization_id?: number; user_id?: number }
   const validation = tripPermissionCreateSchema.safeParse({
     trip_id: id,
-    organization_id: body.organization_id,
+    organization_id: body.organization_id ?? null,
+    user_id: body.user_id ?? null,
   })
 
   if (!validation.success) {
@@ -143,8 +145,9 @@ export async function shareTrip(ctx: Context) {
   } catch (error: any) {
     // Handle unique constraint violation (already shared)
     if (error.code === '23505') {
+      const target = body.organization_id ? 'organization' : 'user'
       ctx.status = 409
-      ctx.body = { error: 'Trip already shared with this organization' }
+      ctx.body = { error: `Trip already shared with this ${target}` }
       return
     }
     throw error

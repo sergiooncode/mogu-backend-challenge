@@ -99,12 +99,16 @@ components:
 
     ShareTripRequest:
       type: object
-      required:
-        - organization_id
       properties:
         organization_id:
           type: integer
-          description: ID of organization to share trip with
+          nullable: true
+          description: ID of organization to share trip with (mutually exclusive with user_id)
+        user_id:
+          type: integer
+          nullable: true
+          description: ID of specific user to share trip with (mutually exclusive with organization_id)
+      description: Either organization_id or user_id must be provided, but not both
 
     TripPermission:
       type: object
@@ -115,6 +119,12 @@ components:
           type: integer
         organization_id:
           type: integer
+          nullable: true
+          description: Organization with access (null if user-specific)
+        user_id:
+          type: integer
+          nullable: true
+          description: Specific user with access (null if organization-wide)
         created_at:
           type: string
           format: date-time
@@ -194,7 +204,7 @@ paths:
       tags:
         - Trips
       summary: Get trip (protected)
-      description: Requires authentication. Only accessible if user's organization has permission.
+      description: Requires authentication. Only accessible if user's organization has permission or user has been granted specific access.
       security:
         - BearerAuth: []
       parameters:
@@ -221,7 +231,7 @@ paths:
       tags:
         - Trips
       summary: Update trip (protected)
-      description: Requires authentication. Only accessible if user's organization has permission.
+      description: Requires authentication. Only accessible if user's organization has permission or user has been granted specific access.
       security:
         - BearerAuth: []
       parameters:
@@ -269,8 +279,8 @@ paths:
     post:
       tags:
         - Trips
-      summary: Share trip with organization (protected)
-      description: Grant an organization access to view and update a trip. Requires authentication.
+      summary: Share trip with organization or user (protected)
+      description: Grant an organization or specific user access to view and update a trip. Provide either organization_id (org-wide access) or user_id (user-specific access), but not both. Requires authentication.
       security:
         - BearerAuth: []
       parameters:
@@ -300,4 +310,4 @@ paths:
         '404':
           description: Trip not found
         '409':
-          description: Trip already shared with this organization
+          description: Trip already shared with this organization or user
