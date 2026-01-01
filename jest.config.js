@@ -32,6 +32,9 @@ module.exports = {
   // Test timeout - 10 seconds to accommodate database operations
   testTimeout: 10000,
 
+  // Run tests sequentially to avoid database race conditions
+  maxWorkers: 1,
+
   // Module paths for clean imports
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
