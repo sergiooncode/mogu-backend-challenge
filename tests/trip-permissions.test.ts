@@ -265,4 +265,112 @@ describe('Trip Permissions API', () => {
       expect(response.body.destination).toBe('Madrid')
     })
   })
+
+  describe('POST /trips/:id/share - user-specific', () => {
+    let user3Id: number
+    let user3Token: string
+
+    beforeEach(async () => {
+      // Create a trip for user1's organization
+      const tripResponse = await request(app.callback())
+        .post('/trips')
+        .set('Authorization', `Bearer ${user1Token}`)
+        .send({
+          title: 'Team Trip',
+          destination: 'Barcelona',
+          start_date: '2024-07-01',
+          end_date: '2024-07-10',
+        })
+      tripId = tripResponse.body.id
+
+      // Create a third user in org2 (same org as user2)
+      const hashedPassword = await bcrypt.hash('password123', 10)
+      const email3 = `user3.${Date.now()}@org2.com`
+
+      const user3Result = await executeQuery<{ id: number }>(
+        `INSERT INTO users (email, password, organization_id) VALUES ($1, $2, $3) RETURNING id`,
+        [email3, hashedPassword, org2Id]
+      )
+      user3Id = user3Result.rows[0].id
+
+      const user3Response = await request(app.callback())
+        .post('/auth/login')
+        .send({ email: email3, password: 'password123' })
+      user3Token = user3Response.body.token
+    })
+
+    it('should share trip with specific user', async () => {
+      const response = await request(app.callback())
+        .post(`/trips/${tripId}/share`)
+        .set('Authorization', `Bearer ${user1Token}`)
+        .send({ user_id: user3Id })
+        .expect(201)
+
+      expect(response.body).toMatchObject({
+        trip_id: tripId,
+        user_id: user3Id,
+        organization_id: null,
+      })
+    })
+
+    it('should allow user-specific access but not org-wide access', async () => {
+      // Share with user3 specifically
+      await request(app.callback())
+        .post(`/trips/${tripId}/share`)
+        .set('Authorization', `Bearer ${user1Token}`)
+        .send({ user_id: user3Id })
+
+      // User3 should have access
+      await request(app.callback())
+        .get(`/trips/${tripId}`)
+        .set('Authorization', `Bearer ${user3Token}`)
+        .expect(200)
+
+      // User2 (same org as user3) should NOT have access
+      const response = await request(app.callback())
+        .get(`/trips/${tripId}`)
+        .set('Authorization', `Bearer ${user2Token}`)
+        .expect(403)
+
+      expect(response.body.error).toContain('Access denied')
+    })
+
+    it('should return 409 when trip already shared with user', async () => {
+      // Share once
+      await request(app.callback())
+        .post(`/trips/${tripId}/share`)
+        .set('Authorization', `Bearer ${user1Token}`)
+        .send({ user_id: user3Id })
+        .expect(201)
+
+      // Try to share again
+      const response = await request(app.callback())
+        .post(`/trips/${tripId}/share`)
+        .set('Authorization', `Bearer ${user1Token}`)
+        .send({ user_id: user3Id })
+        .expect(409)
+
+      expect(response.body.error).toBe('Trip already shared with this user')
+    })
+
+    it('should return 400 when both organization_id and user_id provided', async () => {
+      const response = await request(app.callback())
+        .post(`/trips/${tripId}/share`)
+        .set('Authorization', `Bearer ${user1Token}`)
+        .send({ organization_id: org2Id, user_id: user3Id })
+        .expect(400)
+
+      expect(response.body.error).toBe('Validation failed')
+    })
+
+    it('should return 400 when neither organization_id nor user_id provided', async () => {
+      const response = await request(app.callback())
+        .post(`/trips/${tripId}/share`)
+        .set('Authorization', `Bearer ${user1Token}`)
+        .send({})
+        .expect(400)
+
+      expect(response.body.error).toBe('Validation failed')
+    })
+  })
 })

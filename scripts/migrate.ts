@@ -2,7 +2,7 @@ import { pool } from '../src/db'
 import * as fs from 'fs'
 import * as path from 'path'
 
-async function migrate() {
+export async function runMigrations(closePool = true) {
   const client = await pool.connect()
 
   try {
@@ -58,16 +58,21 @@ async function migrate() {
       console.log(`✅ Migration ${file} completed`)
     }
 
-    console.log('\n🎉 All migrations completed successfully')
+    console.log('All migrations completed successfully')
   } catch (error) {
     console.error('❌ Migration failed:', error)
     throw error
   } finally {
     client.release()
-    await pool.end()
+    if (closePool) {
+      await pool.end()
+    }
   }
 }
 
-migrate()
-  .then(() => process.exit(0))
-  .catch(() => process.exit(1))
+// Only run migrations and exit if this file is executed directly
+if (require.main === module) {
+  runMigrations()
+    .then(() => process.exit(0))
+    .catch(() => process.exit(1))
+}
