@@ -26,8 +26,13 @@ app.use(bodyParser())
 app.use(router.routes())
 app.use(router.allowedMethods())
 
-// Start server
-app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`)
-  console.log(`Health check: http://localhost:${port}/health`)
-})
+// Export app for testing
+export default app
+
+// Start server (skip in test environment)
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(port, () => {
+    console.log(`Server running on http://localhost:${port}`)
+    console.log(`Health check: http://localhost:${port}/health`)
+  })
+}
