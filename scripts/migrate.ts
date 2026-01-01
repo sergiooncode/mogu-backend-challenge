@@ -76,12 +76,6 @@ async function migrate() {
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_payments_booking_id ON payments(booking_id)
     `)
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_users_organization_id ON users(organization_id)
-    `)
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)
-    `)
 
     console.log('Migrations completed successfully')
   } catch (error) {
