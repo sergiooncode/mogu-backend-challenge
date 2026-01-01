@@ -92,6 +92,10 @@ components:
         end_date:
           type: string
           format: date
+        created_by_user_id:
+          type: integer
+          nullable: true
+          description: User who created the trip (trip owner)
         created_at:
           type: string
           format: date-time
@@ -130,6 +134,11 @@ components:
           type: integer
           nullable: true
           description: ID of specific user to share trip with (mutually exclusive with organization_id)
+        permission_level:
+          type: string
+          enum: [read, write]
+          default: read
+          description: Permission level - 'read' for view-only access, 'write' for edit access
       description: Either organization_id or user_id must be provided, but not both
 
     TripPermission:
@@ -147,6 +156,10 @@ components:
           type: integer
           nullable: true
           description: Specific user with access (null if organization-wide)
+        permission_level:
+          type: string
+          enum: [read, write]
+          description: Permission level - 'read' for view-only, 'write' for edit access
         created_at:
           type: string
           format: date-time
@@ -224,7 +237,7 @@ paths:
       tags:
         - Trips
       summary: Create trip (protected)
-      description: Requires authentication
+      description: Requires authentication. Trips are private by default - only the creator (owner) can access them until explicitly shared.
       security:
         - BearerAuth: []
       requestBody:
@@ -250,7 +263,7 @@ paths:
       tags:
         - Trips
       summary: Get trip (protected)
-      description: Requires authentication. Only accessible if user's organization has permission or user has been granted specific access.
+      description: Requires authentication. Only accessible to trip owner OR users/organizations with 'read' or 'write' permission.
       security:
         - BearerAuth: []
       parameters:
@@ -277,7 +290,7 @@ paths:
       tags:
         - Trips
       summary: Update trip (protected)
-      description: Requires authentication. Only accessible if user's organization has permission or user has been granted specific access.
+      description: Requires authentication. Only accessible to trip owner OR users/organizations with 'write' permission.
       security:
         - BearerAuth: []
       parameters:
@@ -326,7 +339,7 @@ paths:
       tags:
         - Trips
       summary: Share trip with organization or user (protected)
-      description: Grant an organization or specific user access to view and update a trip. Provide either organization_id (org-wide access) or user_id (user-specific access), but not both. Requires authentication.
+      description: Grant an organization or specific user access to a trip with specified permission level ('read' for view-only, 'write' for edit access). Provide either organization_id (org-wide access) or user_id (user-specific access), but not both. Defaults to 'read' permission. Requires authentication.
       security:
         - BearerAuth: []
       parameters:

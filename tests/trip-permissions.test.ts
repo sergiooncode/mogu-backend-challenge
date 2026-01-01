@@ -55,8 +55,8 @@ describe('Trip Permissions API', () => {
     await executeQuery('TRUNCATE trips, travelers, bookings, payments, users, organizations, trip_permissions CASCADE')
   })
 
-  describe('POST /trips - auto-grant permission', () => {
-    it('should automatically grant permission to creator\'s organization', async () => {
+  describe('POST /trips - private by default', () => {
+    it('should create trip as private (no permissions granted)', async () => {
       const response = await request(app.callback())
         .post('/trips')
         .set('Authorization', `Bearer ${user1Token}`)
@@ -70,14 +70,16 @@ describe('Trip Permissions API', () => {
 
       tripId = response.body.id
 
-      // Verify permission was created
+      // Verify no permissions were created (trip is private)
       const permissionResult = await executeQuery<{ organization_id: number }>(
         'SELECT organization_id FROM trip_permissions WHERE trip_id = $1',
         [tripId]
       )
 
-      expect(permissionResult.rows.length).toBe(1)
-      expect(permissionResult.rows[0].organization_id).toBe(org1Id)
+      expect(permissionResult.rows.length).toBe(0)
+
+      // Verify owner is set
+      expect(response.body.created_by_user_id).toBeDefined()
     })
   })
 
@@ -100,20 +102,22 @@ describe('Trip Permissions API', () => {
       const response = await request(app.callback())
         .post(`/trips/${tripId}/share`)
         .set('Authorization', `Bearer ${user1Token}`)
-        .send({ organization_id: org2Id })
+        .send({ organization_id: org2Id, permission_level: 'read' })
         .expect(201)
 
       expect(response.body).toMatchObject({
         trip_id: tripId,
         organization_id: org2Id,
+        permission_level: 'read',
       })
 
       // Verify permission was created
-      const permissionResult = await executeQuery<{ id: number }>(
-        'SELECT id FROM trip_permissions WHERE trip_id = $1 AND organization_id = $2',
+      const permissionResult = await executeQuery<{ id: number; permission_level: string }>(
+        'SELECT id, permission_level FROM trip_permissions WHERE trip_id = $1 AND organization_id = $2',
         [tripId, org2Id]
       )
       expect(permissionResult.rows.length).toBe(1)
+      expect(permissionResult.rows[0].permission_level).toBe('read')
     })
 
     it('should return 409 when trip already shared with organization', async () => {
@@ -248,12 +252,12 @@ describe('Trip Permissions API', () => {
       expect(response.body.error).toContain('Access denied')
     })
 
-    it('should allow update after trip is shared', async () => {
-      // Share trip with org2
+    it('should allow update after trip is shared with write permission', async () => {
+      // Share trip with org2 with write permission
       await request(app.callback())
         .post(`/trips/${tripId}/share`)
         .set('Authorization', `Bearer ${user1Token}`)
-        .send({ organization_id: org2Id })
+        .send({ organization_id: org2Id, permission_level: 'write' })
 
       // User2 should now be able to update
       const response = await request(app.callback())

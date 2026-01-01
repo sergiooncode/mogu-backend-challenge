@@ -20,9 +20,11 @@ export async function getTrip(ctx: Context) {
     return
   }
 
-  // Check if user or their organization has permission
+  // Check if user is owner OR has permission (read or write)
   if (ctx.user?.userId && ctx.user?.organizationId) {
-    const hasAccess = await TripPermissionModel.hasPermission(id, ctx.user.userId, ctx.user.organizationId)
+    const isOwner = trip.created_by_user_id === ctx.user.userId
+    const hasAccess = isOwner || await TripPermissionModel.hasPermission(id, ctx.user.userId, ctx.user.organizationId, 'read')
+
     if (!hasAccess) {
       ctx.status = 403
       ctx.body = { error: 'Access denied: You do not have permission to view this trip' }
@@ -42,16 +44,8 @@ export async function createTrip(ctx: Context) {
     return
   }
 
-  const trip = await TripModel.create(validation.data)
-
-  // Automatically grant permission to creator's organization
-  if (ctx.user?.organizationId) {
-    await TripPermissionModel.create({
-      trip_id: trip.id,
-      organization_id: ctx.user.organizationId,
-      user_id: null,
-    })
-  }
+  // Create trip with creator ownership (trips are private by default)
+  const trip = await TripModel.create(validation.data, ctx.user?.userId)
 
   ctx.status = 201
   ctx.body = trip
@@ -81,12 +75,14 @@ export async function updateTrip(ctx: Context) {
     return
   }
 
-  // Check if user or their organization has permission
+  // Check if user is owner OR has write permission
   if (ctx.user?.userId && ctx.user?.organizationId) {
-    const hasAccess = await TripPermissionModel.hasPermission(id, ctx.user.userId, ctx.user.organizationId)
-    if (!hasAccess) {
+    const isOwner = existingTrip.created_by_user_id === ctx.user.userId
+    const hasWriteAccess = isOwner || await TripPermissionModel.hasPermission(id, ctx.user.userId, ctx.user.organizationId, 'write')
+
+    if (!hasWriteAccess) {
       ctx.status = 403
-      ctx.body = { error: 'Access denied: You do not have permission to update this trip' }
+      ctx.body = { error: 'Access denied: You need write permission to update this trip' }
       return
     }
   }
@@ -117,11 +113,12 @@ export async function shareTrip(ctx: Context) {
     return
   }
 
-  const body = ctx.request.body as { organization_id?: number; user_id?: number }
+  const body = ctx.request.body as { organization_id?: number; user_id?: number; permission_level?: string }
   const validation = tripPermissionCreateSchema.safeParse({
     trip_id: id,
     organization_id: body.organization_id ?? null,
     user_id: body.user_id ?? null,
+    permission_level: body.permission_level || 'read',
   })
 
   if (!validation.success) {

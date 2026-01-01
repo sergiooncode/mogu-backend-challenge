@@ -22,10 +22,10 @@ async function findById(id: number): Promise<Trip | undefined> {
   return result.rows[0]
 }
 
-async function create(data: TripCreate): Promise<Trip> {
+async function create(data: TripCreate, createdByUserId?: number): Promise<Trip> {
   const query = `
-    INSERT INTO trips (title, destination, start_date, end_date)
-    VALUES ($1, $2, $3, $4)
+    INSERT INTO trips (title, destination, start_date, end_date, created_by_user_id)
+    VALUES ($1, $2, $3, $4, $5)
     RETURNING *
   `
   const result = await executeQuery<Trip>(query, [
@@ -33,6 +33,7 @@ async function create(data: TripCreate): Promise<Trip> {
     data.destination,
     data.start_date,
     data.end_date,
+    createdByUserId || null,
   ])
   return result.rows[0]
 }
