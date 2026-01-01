@@ -11,6 +11,119 @@ describe('Authentication', () => {
     await executeQuery('TRUNCATE trips, travelers, bookings, payments, users, organizations CASCADE')
   })
 
+  describe('POST /auth/register', () => {
+    it('should register a new user and return token', async () => {
+      const email = uniqueEmail()
+      const password = 'password123'
+      const organization_name = 'New Organization'
+
+      const response = await request(app.callback())
+        .post('/auth/register')
+        .send({ email, password, organization_name })
+        .expect(201)
+
+      expect(response.body.token).toBeDefined()
+      expect(typeof response.body.token).toBe('string')
+      expect(response.body.user).toMatchObject({
+        email,
+      })
+      expect(response.body.user.id).toBeDefined()
+      expect(response.body.user.organization_id).toBeDefined()
+
+      // Verify user was created in database
+      const userResult = await executeQuery(
+        'SELECT * FROM users WHERE email = $1',
+        [email]
+      )
+      expect(userResult.rows.length).toBe(1)
+
+      // Verify organization was created
+      const orgResult = await executeQuery(
+        'SELECT * FROM organizations WHERE name = $1',
+        [organization_name]
+      )
+      expect(orgResult.rows.length).toBe(1)
+    })
+
+    it('should return 409 if email already exists', async () => {
+      const email = uniqueEmail()
+      const password = 'password123'
+
+      // Register first user
+      await request(app.callback())
+        .post('/auth/register')
+        .send({ email, password, organization_name: 'Org 1' })
+        .expect(201)
+
+      // Try to register with same email
+      const response = await request(app.callback())
+        .post('/auth/register')
+        .send({ email, password, organization_name: 'Org 2' })
+        .expect(409)
+
+      expect(response.body.error).toContain('already exists')
+    })
+
+    it('should return 400 for invalid email', async () => {
+      const response = await request(app.callback())
+        .post('/auth/register')
+        .send({
+          email: 'invalid-email',
+          password: 'password123',
+          organization_name: 'Test Org'
+        })
+        .expect(400)
+
+      expect(response.body.error).toBe('Validation failed')
+    })
+
+    it('should return 400 for password shorter than 8 characters', async () => {
+      const response = await request(app.callback())
+        .post('/auth/register')
+        .send({
+          email: uniqueEmail(),
+          password: 'short',
+          organization_name: 'Test Org'
+        })
+        .expect(400)
+
+      expect(response.body.error).toBe('Validation failed')
+      expect(response.body.details.password).toBeDefined()
+    })
+
+    it('should return 400 if organization_name is missing', async () => {
+      const response = await request(app.callback())
+        .post('/auth/register')
+        .send({
+          email: uniqueEmail(),
+          password: 'password123'
+        })
+        .expect(400)
+
+      expect(response.body.error).toBe('Validation failed')
+    })
+
+    it('should hash password before storing', async () => {
+      const email = uniqueEmail()
+      const password = 'password123'
+
+      await request(app.callback())
+        .post('/auth/register')
+        .send({ email, password, organization_name: 'Test Org' })
+        .expect(201)
+
+      // Verify password is hashed
+      const userResult = await executeQuery<{ password: string }>(
+        'SELECT password FROM users WHERE email = $1',
+        [email]
+      )
+      const storedPassword = userResult.rows[0].password
+
+      expect(storedPassword).not.toBe(password)
+      expect(storedPassword.startsWith('$2b$')).toBe(true) // bcrypt hash format
+    })
+  })
+
   describe('POST /auth/login', () => {
     it('should login successfully with valid credentials', async () => {
       // Arrange: Create organization and user

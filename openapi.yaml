@@ -55,6 +55,28 @@ components:
             organization_id:
               type: integer
 
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - organization_name
+      properties:
+        email:
+          type: string
+          format: email
+          example: "newuser@example.com"
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: "securepassword123"
+        organization_name:
+          type: string
+          minLength: 1
+          example: "My Company"
+          description: "Name of the organization to create"
+
     Trip:
       type: object
       properties:
@@ -130,6 +152,30 @@ components:
           format: date-time
 
 paths:
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register new user
+      description: Create a new user account with a new organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '409':
+          description: Email already exists
+        '400':
+          description: Validation error
+
   /auth/login:
     post:
       tags:
