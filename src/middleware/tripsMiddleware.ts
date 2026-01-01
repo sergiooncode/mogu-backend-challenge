@@ -1,6 +1,8 @@
 import { Context } from 'koa'
 import TripModel from '../models/tripModel'
+import TripPermissionModel from '../models/tripPermissionModel'
 import { tripCreateSchema, tripUpdateSchema } from '../schemas/trip'
+import { tripPermissionCreateSchema } from '../schemas/tripPermission'
 
 export async function getTrips(ctx: Context) {
   const destination = ctx.query.destination as string | undefined
@@ -18,6 +20,16 @@ export async function getTrip(ctx: Context) {
     return
   }
 
+  // Check if user's organization has permission
+  if (ctx.user?.organizationId) {
+    const hasAccess = await TripPermissionModel.hasPermission(id, ctx.user.organizationId)
+    if (!hasAccess) {
+      ctx.status = 403
+      ctx.body = { error: 'Access denied: Your organization does not have permission to view this trip' }
+      return
+    }
+  }
+
   ctx.body = trip
 }
 
@@ -31,6 +43,15 @@ export async function createTrip(ctx: Context) {
   }
 
   const trip = await TripModel.create(validation.data)
+
+  // Automatically grant permission to creator's organization
+  if (ctx.user?.organizationId) {
+    await TripPermissionModel.create({
+      trip_id: trip.id,
+      organization_id: ctx.user.organizationId,
+    })
+  }
+
   ctx.status = 201
   ctx.body = trip
 }
@@ -51,14 +72,25 @@ export async function updateTrip(ctx: Context) {
     return
   }
 
-  const trip = await TripModel.update(id, validation.data)
-
-  if (!trip) {
+  // Check if trip exists
+  const existingTrip = await TripModel.findById(id)
+  if (!existingTrip) {
     ctx.status = 404
     ctx.body = { error: 'Trip not found' }
     return
   }
 
+  // Check if user's organization has permission
+  if (ctx.user?.organizationId) {
+    const hasAccess = await TripPermissionModel.hasPermission(id, ctx.user.organizationId)
+    if (!hasAccess) {
+      ctx.status = 403
+      ctx.body = { error: 'Access denied: Your organization does not have permission to update this trip' }
+      return
+    }
+  }
+
+  const trip = await TripModel.update(id, validation.data)
   ctx.body = trip
 }
 
@@ -73,4 +105,48 @@ export async function deleteTrip(ctx: Context) {
   }
 
   ctx.status = 204
+}
+
+export async function shareTrip(ctx: Context) {
+  const id = parseInt(ctx.params.id, 10)
+
+  if (isNaN(id)) {
+    ctx.status = 400
+    ctx.body = { error: 'Invalid trip ID' }
+    return
+  }
+
+  const body = ctx.request.body as { organization_id?: number }
+  const validation = tripPermissionCreateSchema.safeParse({
+    trip_id: id,
+    organization_id: body.organization_id,
+  })
+
+  if (!validation.success) {
+    ctx.status = 400
+    ctx.body = { error: 'Validation failed', details: validation.error.flatten().fieldErrors }
+    return
+  }
+
+  // Verify trip exists
+  const trip = await TripModel.findById(id)
+  if (!trip) {
+    ctx.status = 404
+    ctx.body = { error: 'Trip not found' }
+    return
+  }
+
+  try {
+    const permission = await TripPermissionModel.create(validation.data)
+    ctx.status = 201
+    ctx.body = permission
+  } catch (error: any) {
+    // Handle unique constraint violation (already shared)
+    if (error.code === '23505') {
+      ctx.status = 409
+      ctx.body = { error: 'Trip already shared with this organization' }
+      return
+    }
+    throw error
+  }
 }
