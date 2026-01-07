@@ -13,6 +13,8 @@ tags:
     description: User authentication endpoints
   - name: Trips
     description: Trip management endpoints
+  - name: Bookings
+    description: Booking management endpoints
 
 components:
   securitySchemes:
@@ -163,6 +165,52 @@ components:
         created_at:
           type: string
           format: date-time
+
+    Booking:
+      type: object
+      properties:
+        id:
+          type: integer
+        trip_id:
+          type: integer
+        traveler_id:
+          type: integer
+        status:
+          type: string
+          enum: [pending, confirmed, cancelled]
+        created_at:
+          type: string
+          format: date-time
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: integer
+        booking_id:
+          type: integer
+        amount:
+          type: number
+          format: decimal
+        currency:
+          type: string
+        status:
+          type: string
+          enum: [pending, completed, refunded]
+        created_at:
+          type: string
+          format: date-time
+
+    CancellationResponse:
+      type: object
+      properties:
+        booking:
+          $ref: '#/components/schemas/Booking'
+        refund:
+          allOf:
+            - $ref: '#/components/schemas/Payment'
+            - nullable: true
+          description: Refund payment (only present if a completed payment existed)
 
 paths:
   /auth/register:
@@ -370,3 +418,28 @@ paths:
           description: Trip not found
         '409':
           description: Trip already shared with this organization or user
+
+  /bookings/{id}/cancel:
+    patch:
+      tags:
+        - Bookings
+      summary: Cancel a booking
+      description: Cancels a booking and creates a refund if a completed payment exists. Uses transaction to ensure atomicity - both operations succeed or both fail.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Booking ID to cancel
+      responses:
+        '200':
+          description: Booking cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancellationResponse'
+        '400':
+          description: Invalid booking ID or booking already cancelled
+        '404':
+          description: Booking not found
