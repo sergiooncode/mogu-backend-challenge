@@ -15,6 +15,8 @@ tags:
     description: Trip management endpoints
   - name: Bookings
     description: Booking management endpoints
+  - name: Payments
+    description: Payment management endpoints
 
 components:
   securitySchemes:
@@ -182,6 +184,28 @@ components:
           type: string
           format: date-time
 
+    BookingCreate:
+      type: object
+      required:
+        - trip_id
+        - traveler_id
+      properties:
+        trip_id:
+          type: integer
+        traveler_id:
+          type: integer
+
+    BookingUpdate:
+      type: object
+      properties:
+        trip_id:
+          type: integer
+        traveler_id:
+          type: integer
+        status:
+          type: string
+          enum: [pending, confirmed, cancelled]
+
     Payment:
       type: object
       properties:
@@ -200,6 +224,41 @@ components:
         created_at:
           type: string
           format: date-time
+
+    PaymentCreate:
+      type: object
+      required:
+        - booking_id
+        - amount
+      properties:
+        booking_id:
+          type: integer
+        amount:
+          type: number
+          format: decimal
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          default: EUR
+          example: EUR
+        status:
+          type: string
+          enum: [pending, completed, refunded]
+
+    PaymentUpdate:
+      type: object
+      properties:
+        amount:
+          type: number
+          format: decimal
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        status:
+          type: string
+          enum: [pending, completed, refunded]
 
     CancellationResponse:
       type: object
@@ -419,6 +478,110 @@ paths:
         '409':
           description: Trip already shared with this organization or user
 
+  /bookings:
+    get:
+      tags:
+        - Bookings
+      summary: List bookings
+      responses:
+        '200':
+          description: List of bookings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Booking'
+
+    post:
+      tags:
+        - Bookings
+      summary: Create booking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingCreate'
+      responses:
+        '201':
+          description: Booking created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '400':
+          description: Validation error
+
+  /bookings/{id}:
+    get:
+      tags:
+        - Bookings
+      summary: Get booking by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Booking details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '400':
+          description: Invalid booking ID
+        '404':
+          description: Booking not found
+
+    put:
+      tags:
+        - Bookings
+      summary: Update booking
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingUpdate'
+      responses:
+        '200':
+          description: Booking updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '400':
+          description: Validation error or invalid booking ID
+        '404':
+          description: Booking not found
+
+    delete:
+      tags:
+        - Bookings
+      summary: Delete booking
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Booking deleted
+        '400':
+          description: Invalid booking ID
+        '404':
+          description: Booking not found
+
   /bookings/{id}/cancel:
     patch:
       tags:
@@ -443,3 +606,107 @@ paths:
           description: Invalid booking ID or booking already cancelled
         '404':
           description: Booking not found
+
+  /payments:
+    get:
+      tags:
+        - Payments
+      summary: List payments
+      responses:
+        '200':
+          description: List of payments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payment'
+
+    post:
+      tags:
+        - Payments
+      summary: Create payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentCreate'
+      responses:
+        '201':
+          description: Payment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          description: Validation error
+
+  /payments/{id}:
+    get:
+      tags:
+        - Payments
+      summary: Get payment by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Payment details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          description: Invalid payment ID
+        '404':
+          description: Payment not found
+
+    put:
+      tags:
+        - Payments
+      summary: Update payment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentUpdate'
+      responses:
+        '200':
+          description: Payment updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          description: Validation error or invalid payment ID
+        '404':
+          description: Payment not found
+
+    delete:
+      tags:
+        - Payments
+      summary: Delete payment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Payment deleted
+        '400':
+          description: Invalid payment ID
+        '404':
+          description: Payment not found
