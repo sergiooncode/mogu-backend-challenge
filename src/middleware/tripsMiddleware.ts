@@ -5,8 +5,17 @@ import { tripCreateSchema, tripUpdateSchema } from '../schemas/trip'
 import { tripPermissionCreateSchema } from '../schemas/tripPermission'
 
 export async function getTrips(ctx: Context) {
+  if (!ctx.user) {
+    ctx.status = 401
+    ctx.body = { error: 'Unauthorized' }
+    return
+  }
+
+  const { userId, organizationId } = ctx.user
   const destination = ctx.query.destination as string | undefined
-  const trips = await TripModel.findAll(destination)
+
+  // Only return trips user owns OR has permission to see
+  const trips = await TripModel.findAllForUser(userId, organizationId, destination)
   ctx.body = trips
 }
 

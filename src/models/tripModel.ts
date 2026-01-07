@@ -16,6 +16,30 @@ async function findAll(destination?: string): Promise<Trip[]> {
   return result.rows
 }
 
+async function findAllForUser(userId: number, organizationId: number, destination?: string): Promise<Trip[]> {
+  let query = `
+    SELECT DISTINCT t.*
+    FROM trips t
+    LEFT JOIN trip_permissions tp ON t.id = tp.trip_id
+    WHERE (
+      t.created_by_user_id = $1
+      OR tp.user_id = $1
+      OR tp.organization_id = $2
+    )
+  `
+  const params: (number | string)[] = [userId, organizationId]
+
+  if (destination) {
+    query += ' AND t.destination ILIKE $3'
+    params.push(`%${destination}%`)
+  }
+
+  query += ' ORDER BY t.created_at DESC'
+
+  const result = await executeQuery<Trip>(query, params)
+  return result.rows
+}
+
 async function findById(id: number): Promise<Trip | undefined> {
   const query = 'SELECT * FROM trips WHERE id = $1'
   const result = await executeQuery<Trip>(query, [id])
@@ -78,6 +102,7 @@ async function remove(id: number): Promise<boolean> {
 
 export default {
   findAll,
+  findAllForUser,
   findById,
   create,
   update,

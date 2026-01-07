@@ -4,7 +4,7 @@ import { requireAuth } from '../middleware/authMiddleware'
 
 const router = new Router({ prefix: '/trips' })
 
-router.get('/', getTrips)
+router.get('/', requireAuth, getTrips)
 router.get('/:id', requireAuth, getTrip)
 router.post('/', requireAuth, createTrip)
 router.post('/:id/share', requireAuth, shareTrip)

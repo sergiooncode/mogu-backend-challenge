@@ -371,14 +371,14 @@ describe('Authentication', () => {
   })
 
   describe('Protected Routes', () => {
-    it('should allow GET /trips without authentication', async () => {
+    it('should require authentication for GET /trips', async () => {
       // Act: Get trips without token
       const response = await request(app.callback())
         .get('/trips')
-        .expect(200)
+        .expect(401)
 
-      // Assert: Response is array
-      expect(Array.isArray(response.body)).toBe(true)
+      // Assert: Error message
+      expect(response.body.error).toBe('No token provided')
     })
 
     it('should protect POST /trips and require authentication', async () => {

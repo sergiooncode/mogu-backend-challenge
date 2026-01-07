@@ -13,6 +13,8 @@ tags:
     description: User authentication endpoints
   - name: Trips
     description: Trip management endpoints
+  - name: Travelers
+    description: Traveler management endpoints
   - name: Bookings
     description: Booking management endpoints
   - name: Payments
@@ -167,6 +169,63 @@ components:
         created_at:
           type: string
           format: date-time
+
+    Traveler:
+      type: object
+      properties:
+        id:
+          type: integer
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        created_at:
+          type: string
+          format: date-time
+
+    TravelerCreate:
+      type: object
+      required:
+        - first_name
+        - last_name
+        - email
+      properties:
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 255
+
+    TravelerUpdate:
+      type: object
+      properties:
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 255
 
     Booking:
       type: object
@@ -324,7 +383,10 @@ paths:
     get:
       tags:
         - Trips
-      summary: List trips
+      summary: List trips (protected)
+      description: Requires authentication. Returns only trips that the user owns or has been granted permission to access (read or write).
+      security:
+        - BearerAuth: []
       parameters:
         - name: destination
           in: query
@@ -332,13 +394,15 @@ paths:
             type: string
       responses:
         '200':
-          description: List of trips
+          description: List of trips accessible to the authenticated user
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/Trip'
+        '401':
+          description: Unauthorized
 
     post:
       tags:
@@ -477,6 +541,110 @@ paths:
           description: Trip not found
         '409':
           description: Trip already shared with this organization or user
+
+  /travelers:
+    get:
+      tags:
+        - Travelers
+      summary: List travelers
+      responses:
+        '200':
+          description: List of travelers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Traveler'
+
+    post:
+      tags:
+        - Travelers
+      summary: Create traveler
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TravelerCreate'
+      responses:
+        '201':
+          description: Traveler created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Traveler'
+        '400':
+          description: Validation error
+
+  /travelers/{id}:
+    get:
+      tags:
+        - Travelers
+      summary: Get traveler by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Traveler details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Traveler'
+        '400':
+          description: Invalid traveler ID
+        '404':
+          description: Traveler not found
+
+    put:
+      tags:
+        - Travelers
+      summary: Update traveler
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TravelerUpdate'
+      responses:
+        '200':
+          description: Traveler updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Traveler'
+        '400':
+          description: Validation error or invalid traveler ID
+        '404':
+          description: Traveler not found
+
+    delete:
+      tags:
+        - Travelers
+      summary: Delete traveler
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Traveler deleted
+        '400':
+          description: Invalid traveler ID
+        '404':
+          description: Traveler not found
 
   /bookings:
     get:
