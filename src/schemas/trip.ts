@@ -6,10 +6,11 @@ export const tripSchema = z.object({
   destination: z.string().min(1).max(255),
   start_date: z.string().date(),
   end_date: z.string().date(),
+  created_by_user_id: z.number().int().nullable().optional(),
   created_at: z.string().datetime().optional(),
 })
 
-export const tripCreateSchema = tripSchema.omit({ id: true, created_at: true })
+export const tripCreateSchema = tripSchema.omit({ id: true, created_at: true, created_by_user_id: true })
 
 export const tripUpdateSchema = tripCreateSchema.partial()
 

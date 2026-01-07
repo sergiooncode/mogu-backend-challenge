@@ -1,74 +1,78 @@
 import { pool } from '../src/db'
+import * as fs from 'fs'
+import * as path from 'path'
 
-async function migrate() {
+export async function runMigrations(closePool = true) {
   const client = await pool.connect()
 
   try {
     console.log('Running migrations...')
 
+    // Create schema_migrations table to track applied migrations
     await client.query(`
-      CREATE TABLE IF NOT EXISTS trips (
-        id SERIAL PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        destination VARCHAR(255) NOT NULL,
-        start_date DATE NOT NULL,
-        end_date DATE NOT NULL,
-        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        version INTEGER PRIMARY KEY,
+        applied_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       )
     `)
 
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS travelers (
-        id SERIAL PRIMARY KEY,
-        first_name VARCHAR(100) NOT NULL,
-        last_name VARCHAR(100) NOT NULL,
-        email VARCHAR(255) NOT NULL UNIQUE,
-        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    // Get all migration files
+    const migrationsDir = path.join(__dirname, 'migrations')
+    const migrationFiles = fs
+      .readdirSync(migrationsDir)
+      .filter(f => f.endsWith('.sql'))
+      .sort()
+
+    console.log(`Found ${migrationFiles.length} migration files`)
+
+    for (const file of migrationFiles) {
+      // Extract version number from filename (e.g., 001_initial_schema.sql -> 1)
+      const version = parseInt(file.split('_')[0], 10)
+
+      // Check if migration has already been applied
+      const result = await client.query(
+        'SELECT version FROM schema_migrations WHERE version = $1',
+        [version]
       )
-    `)
 
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS bookings (
-        id SERIAL PRIMARY KEY,
-        trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
-        traveler_id INTEGER NOT NULL REFERENCES travelers(id) ON DELETE CASCADE,
-        status VARCHAR(20) NOT NULL DEFAULT 'pending',
-        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      if (result.rows.length > 0) {
+        console.log(`⏭️  Skipping migration ${file} (already applied)`)
+        continue
+      }
+
+      // Read and execute migration
+      console.log(`▶️  Running migration ${file}...`)
+      const migrationSQL = fs.readFileSync(
+        path.join(migrationsDir, file),
+        'utf8'
       )
-    `)
 
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS payments (
-        id SERIAL PRIMARY KEY,
-        booking_id INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
-        amount NUMERIC(10, 2) NOT NULL,
-        currency VARCHAR(3) NOT NULL DEFAULT 'EUR',
-        status VARCHAR(20) NOT NULL DEFAULT 'pending',
-        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      await client.query(migrationSQL)
+
+      // Record migration as applied
+      await client.query(
+        'INSERT INTO schema_migrations (version) VALUES ($1)',
+        [version]
       )
-    `)
 
-    // Create indexes
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_bookings_trip_id ON bookings(trip_id)
-    `)
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_bookings_traveler_id ON bookings(traveler_id)
-    `)
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_payments_booking_id ON payments(booking_id)
-    `)
+      console.log(`✅ Migration ${file} completed`)
+    }
 
-    console.log('Migrations completed successfully')
+    console.log('All migrations completed successfully')
   } catch (error) {
-    console.error('Migration failed:', error)
+    console.error('❌ Migration failed:', error)
     throw error
   } finally {
     client.release()
-    await pool.end()
+    if (closePool) {
+      await pool.end()
+    }
   }
 }
 
-migrate()
-  .then(() => process.exit(0))
-  .catch(() => process.exit(1))
+// Only run migrations and exit if this file is executed directly
+if (require.main === module) {
+  runMigrations()
+    .then(() => process.exit(0))
+    .catch(() => process.exit(1))
+}

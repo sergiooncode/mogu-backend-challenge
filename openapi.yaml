@@ -1,0 +1,880 @@
+openapi: 3.0.3
+info:
+  title: Backend Challenge API
+  description: REST API for managing trips, bookings, payments, and travelers with JWT authentication
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3000
+    description: Development server
+
+tags:
+  - name: Authentication
+    description: User authentication endpoints
+  - name: Trips
+    description: Trip management endpoints
+  - name: Travelers
+    description: Traveler management endpoints
+  - name: Bookings
+    description: Booking management endpoints
+  - name: Payments
+    description: Payment management endpoints
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "JWT token from /auth/login"
+
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: "test@example.com"
+        password:
+          type: string
+          format: password
+          example: "password123"
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT token (valid 24 hours)
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        user:
+          type: object
+          properties:
+            id:
+              type: integer
+            email:
+              type: string
+            organization_id:
+              type: integer
+
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - organization_name
+      properties:
+        email:
+          type: string
+          format: email
+          example: "newuser@example.com"
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: "securepassword123"
+        organization_name:
+          type: string
+          minLength: 1
+          example: "My Company"
+          description: "Name of the organization to create"
+
+    Trip:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        destination:
+          type: string
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        created_by_user_id:
+          type: integer
+          nullable: true
+          description: User who created the trip (trip owner)
+        created_at:
+          type: string
+          format: date-time
+
+    TripCreate:
+      type: object
+      required:
+        - title
+        - destination
+        - start_date
+        - end_date
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        destination:
+          type: string
+          minLength: 1
+          maxLength: 255
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+
+    ShareTripRequest:
+      type: object
+      properties:
+        organization_id:
+          type: integer
+          nullable: true
+          description: ID of organization to share trip with (mutually exclusive with user_id)
+        user_id:
+          type: integer
+          nullable: true
+          description: ID of specific user to share trip with (mutually exclusive with organization_id)
+        permission_level:
+          type: string
+          enum: [read, write]
+          default: read
+          description: Permission level - 'read' for view-only access, 'write' for edit access
+      description: Either organization_id or user_id must be provided, but not both
+
+    TripPermission:
+      type: object
+      properties:
+        id:
+          type: integer
+        trip_id:
+          type: integer
+        organization_id:
+          type: integer
+          nullable: true
+          description: Organization with access (null if user-specific)
+        user_id:
+          type: integer
+          nullable: true
+          description: Specific user with access (null if organization-wide)
+        permission_level:
+          type: string
+          enum: [read, write]
+          description: Permission level - 'read' for view-only, 'write' for edit access
+        created_at:
+          type: string
+          format: date-time
+
+    Traveler:
+      type: object
+      properties:
+        id:
+          type: integer
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        created_at:
+          type: string
+          format: date-time
+
+    TravelerCreate:
+      type: object
+      required:
+        - first_name
+        - last_name
+        - email
+      properties:
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 255
+
+    TravelerUpdate:
+      type: object
+      properties:
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 255
+
+    Booking:
+      type: object
+      properties:
+        id:
+          type: integer
+        trip_id:
+          type: integer
+        traveler_id:
+          type: integer
+        status:
+          type: string
+          enum: [pending, confirmed, cancelled]
+        created_at:
+          type: string
+          format: date-time
+
+    BookingCreate:
+      type: object
+      required:
+        - trip_id
+        - traveler_id
+      properties:
+        trip_id:
+          type: integer
+        traveler_id:
+          type: integer
+
+    BookingUpdate:
+      type: object
+      properties:
+        trip_id:
+          type: integer
+        traveler_id:
+          type: integer
+        status:
+          type: string
+          enum: [pending, confirmed, cancelled]
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: integer
+        booking_id:
+          type: integer
+        amount:
+          type: number
+          format: decimal
+        currency:
+          type: string
+        status:
+          type: string
+          enum: [pending, completed, refunded]
+        created_at:
+          type: string
+          format: date-time
+
+    PaymentCreate:
+      type: object
+      required:
+        - booking_id
+        - amount
+      properties:
+        booking_id:
+          type: integer
+        amount:
+          type: number
+          format: decimal
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          default: EUR
+          example: EUR
+        status:
+          type: string
+          enum: [pending, completed, refunded]
+
+    PaymentUpdate:
+      type: object
+      properties:
+        amount:
+          type: number
+          format: decimal
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        status:
+          type: string
+          enum: [pending, completed, refunded]
+
+    CancellationResponse:
+      type: object
+      properties:
+        booking:
+          $ref: '#/components/schemas/Booking'
+        refund:
+          allOf:
+            - $ref: '#/components/schemas/Payment'
+            - nullable: true
+          description: Refund payment (only present if a completed payment existed)
+
+paths:
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register new user
+      description: Create a new user account with a new organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '409':
+          description: Email already exists
+        '400':
+          description: Validation error
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Login
+      description: Authenticate and receive JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+        '400':
+          description: Validation error
+
+  /trips:
+    get:
+      tags:
+        - Trips
+      summary: List trips (protected)
+      description: Requires authentication. Returns only trips that the user owns or has been granted permission to access (read or write).
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: destination
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of trips accessible to the authenticated user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Trip'
+        '401':
+          description: Unauthorized
+
+    post:
+      tags:
+        - Trips
+      summary: Create trip (protected)
+      description: Requires authentication. Trips are private by default - only the creator (owner) can access them until explicitly shared.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TripCreate'
+      responses:
+        '201':
+          description: Trip created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trip'
+        '401':
+          description: Unauthorized
+        '400':
+          description: Validation error
+
+  /trips/{id}:
+    get:
+      tags:
+        - Trips
+      summary: Get trip (protected)
+      description: Requires authentication. Only accessible to trip owner OR users/organizations with 'read' or 'write' permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Trip details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trip'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Access denied - organization does not have permission
+        '404':
+          description: Not found
+
+    put:
+      tags:
+        - Trips
+      summary: Update trip (protected)
+      description: Requires authentication. Only accessible to trip owner OR users/organizations with 'write' permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TripCreate'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trip'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Access denied - organization does not have permission
+        '404':
+          description: Not found
+
+    delete:
+      tags:
+        - Trips
+      summary: Delete trip
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          description: Not found
+
+  /trips/{id}/share:
+    post:
+      tags:
+        - Trips
+      summary: Share trip with organization or user (protected)
+      description: Grant an organization or specific user access to a trip with specified permission level ('read' for view-only, 'write' for edit access). Provide either organization_id (org-wide access) or user_id (user-specific access), but not both. Defaults to 'read' permission. Requires authentication.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Trip ID to share
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShareTripRequest'
+      responses:
+        '201':
+          description: Trip successfully shared
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripPermission'
+        '400':
+          description: Validation error or invalid trip ID
+        '401':
+          description: Unauthorized
+        '404':
+          description: Trip not found
+        '409':
+          description: Trip already shared with this organization or user
+
+  /travelers:
+    get:
+      tags:
+        - Travelers
+      summary: List travelers
+      responses:
+        '200':
+          description: List of travelers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Traveler'
+
+    post:
+      tags:
+        - Travelers
+      summary: Create traveler
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TravelerCreate'
+      responses:
+        '201':
+          description: Traveler created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Traveler'
+        '400':
+          description: Validation error
+
+  /travelers/{id}:
+    get:
+      tags:
+        - Travelers
+      summary: Get traveler by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Traveler details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Traveler'
+        '400':
+          description: Invalid traveler ID
+        '404':
+          description: Traveler not found
+
+    put:
+      tags:
+        - Travelers
+      summary: Update traveler
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TravelerUpdate'
+      responses:
+        '200':
+          description: Traveler updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Traveler'
+        '400':
+          description: Validation error or invalid traveler ID
+        '404':
+          description: Traveler not found
+
+    delete:
+      tags:
+        - Travelers
+      summary: Delete traveler
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Traveler deleted
+        '400':
+          description: Invalid traveler ID
+        '404':
+          description: Traveler not found
+
+  /bookings:
+    get:
+      tags:
+        - Bookings
+      summary: List bookings
+      responses:
+        '200':
+          description: List of bookings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Booking'
+
+    post:
+      tags:
+        - Bookings
+      summary: Create booking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingCreate'
+      responses:
+        '201':
+          description: Booking created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '400':
+          description: Validation error
+
+  /bookings/{id}:
+    get:
+      tags:
+        - Bookings
+      summary: Get booking by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Booking details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '400':
+          description: Invalid booking ID
+        '404':
+          description: Booking not found
+
+    put:
+      tags:
+        - Bookings
+      summary: Update booking
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingUpdate'
+      responses:
+        '200':
+          description: Booking updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '400':
+          description: Validation error or invalid booking ID
+        '404':
+          description: Booking not found
+
+    delete:
+      tags:
+        - Bookings
+      summary: Delete booking
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Booking deleted
+        '400':
+          description: Invalid booking ID
+        '404':
+          description: Booking not found
+
+  /bookings/{id}/cancel:
+    patch:
+      tags:
+        - Bookings
+      summary: Cancel a booking
+      description: Cancels a booking and creates a refund if a completed payment exists. Uses transaction to ensure atomicity - both operations succeed or both fail.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Booking ID to cancel
+      responses:
+        '200':
+          description: Booking cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancellationResponse'
+        '400':
+          description: Invalid booking ID or booking already cancelled
+        '404':
+          description: Booking not found
+
+  /payments:
+    get:
+      tags:
+        - Payments
+      summary: List payments
+      responses:
+        '200':
+          description: List of payments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payment'
+
+    post:
+      tags:
+        - Payments
+      summary: Create payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentCreate'
+      responses:
+        '201':
+          description: Payment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          description: Validation error
+
+  /payments/{id}:
+    get:
+      tags:
+        - Payments
+      summary: Get payment by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Payment details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          description: Invalid payment ID
+        '404':
+          description: Payment not found
+
+    put:
+      tags:
+        - Payments
+      summary: Update payment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentUpdate'
+      responses:
+        '200':
+          description: Payment updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          description: Validation error or invalid payment ID
+        '404':
+          description: Payment not found
+
+    delete:
+      tags:
+        - Payments
+      summary: Delete payment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Payment deleted
+        '400':
+          description: Invalid payment ID
+        '404':
+          description: Payment not found

@@ -3,6 +3,7 @@ import tripsRouter from './trips'
 import travelersRouter from './travelers'
 import bookingsRouter from './bookings'
 import paymentsRouter from './payments'
+import authRouter from './auth'
 
 const router = new Router()
 
@@ -10,6 +11,10 @@ const router = new Router()
 router.get('/health', (ctx) => {
   ctx.body = { status: 'ok' }
 })
+
+// Mount auth router
+router.use(authRouter.routes())
+router.use(authRouter.allowedMethods())
 
 // Mount entity routers
 router.use(tripsRouter.routes())

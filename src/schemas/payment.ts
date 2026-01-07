@@ -17,7 +17,9 @@ export const paymentSchema = z.object({
   created_at: z.string().datetime().optional(),
 })
 
-export const paymentCreateSchema = paymentSchema.omit({ id: true, created_at: true, status: true })
+export const paymentCreateSchema = paymentSchema.omit({ id: true, created_at: true }).extend({
+  status: paymentStatusSchema.optional()
+})
 
 export const paymentUpdateSchema = z.object({
   amount: z.number().optional(),
